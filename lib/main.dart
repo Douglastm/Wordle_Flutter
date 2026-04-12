@@ -11,7 +11,7 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      home: Scaffold(body: Center(child: GamePage())),
+      home: Scaffold(body: SafeArea(child: GamePage())),
     );
   }
 }
@@ -38,7 +38,7 @@ class Tile extends StatelessWidget {
           _ => Colors.white,
         },
       ),
-      child: Text(letter, style: const TextStyle(fontSize: 24)),
+      child: Text(letter.toUpperCase(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
     );
   }
 }
@@ -54,13 +54,26 @@ class GamePage extends StatefulWidget {
 class _GamePageState extends State<GamePage> {
   final Game _game = Game();
 
+  String? errorMessage;
+
   void handleGuess(String guess) {
-    if (guess.length != 5) return;
+    if (guess.length != 5) {
+      setState(() {
+        errorMessage = "A palavra deve ter 5 letras";
+      });
+      return;
+    }
+
+    if (!_game.isLegalGuess(guess)) {
+      setState(() {
+        errorMessage = "Palavra inválida";
+      });
+      return;
+    }
 
     setState(() {
-      if (_game.isLegalGuess(guess)) {
-        _game.guess(guess);
-      }
+      errorMessage = null;
+      _game.guess(guess);
     });
   }
 
@@ -71,7 +84,13 @@ class _GamePageState extends State<GamePage> {
       child: Column(
         spacing: 5,
         children: [
+          // GRID
           for (var guess in _game.guesses) Row(spacing: 5, children: [for (var letter in guess) Tile(letter.char, letter.type)]),
+
+          // ERRO
+          if (errorMessage != null) Text(errorMessage!, style: const TextStyle(color: Colors.red)),
+
+          // INPUT
           GuessInput(onSubmitGuess: handleGuess),
         ],
       ),
@@ -80,13 +99,36 @@ class _GamePageState extends State<GamePage> {
 }
 
 // ---------------- INPUT ----------------
-class GuessInput extends StatelessWidget {
-  GuessInput({super.key, required this.onSubmitGuess});
+class GuessInput extends StatefulWidget {
+  const GuessInput({super.key, required this.onSubmitGuess});
 
   final void Function(String) onSubmitGuess;
 
+  @override
+  State<GuessInput> createState() => _GuessInputState();
+}
+
+class _GuessInputState extends State<GuessInput> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void submit() {
+    final text = _controller.text.trim();
+
+    if (text.isEmpty) return;
+
+    widget.onSubmitGuess(text);
+
+    _controller.clear();
+    _focusNode.requestFocus();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,22 +145,11 @@ class GuessInput extends StatelessWidget {
                 border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(35))),
                 hintText: 'Digite uma palavra',
               ),
-              onSubmitted: (value) {
-                onSubmitGuess(value);
-                _controller.clear();
-                _focusNode.requestFocus();
-              },
+              onSubmitted: (_) => submit(),
             ),
           ),
         ),
-        IconButton(
-          icon: const Icon(Icons.arrow_circle_up),
-          onPressed: () {
-            onSubmitGuess(_controller.text.trim());
-            _controller.clear();
-            _focusNode.requestFocus();
-          },
-        ),
+        IconButton(icon: const Icon(Icons.arrow_circle_up), onPressed: submit),
       ],
     );
   }
